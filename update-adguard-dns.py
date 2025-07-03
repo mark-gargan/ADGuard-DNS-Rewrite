@@ -186,6 +186,10 @@ def get_ip_macos():
 
 def get_existing_rewrites():
     """Get existing DNS rewrite rules from AdGuard"""
+    if not ADGUARD_USERNAME or not ADGUARD_PASSWORD:
+        logger.error("AdGuard credentials not configured")
+        return None
+    
     try:
         protocol = "https" if ADGUARD_USE_HTTPS else "http"
         url = f"{protocol}://{ADGUARD_HOST}:{ADGUARD_PORT}/control/rewrite/list"
@@ -198,6 +202,10 @@ def get_existing_rewrites():
 
 def delete_existing_rewrite(domain):
     """Delete existing rewrite rule for the domain"""
+    if not ADGUARD_USERNAME or not ADGUARD_PASSWORD:
+        logger.error("AdGuard credentials not configured")
+        return False
+    
     try:
         protocol = "https" if ADGUARD_USE_HTTPS else "http"
         url = f"{protocol}://{ADGUARD_HOST}:{ADGUARD_PORT}/control/rewrite/delete"
@@ -221,6 +229,10 @@ def validate_ip_address(ip):
 
 def add_dns_rewrite(domain, ip):
     """Add DNS rewrite rule to AdGuard"""
+    if not ADGUARD_USERNAME or not ADGUARD_PASSWORD:
+        logger.error("AdGuard credentials not configured")
+        return False
+    
     try:
         # Validate IP address
         if not validate_ip_address(ip):

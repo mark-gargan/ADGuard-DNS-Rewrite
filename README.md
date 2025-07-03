@@ -43,15 +43,25 @@ docker-compose up -d
 
 The container will automatically run the script every 15 minutes.
 
-## Configuration
+#### Docker with Inline Environment Variables
 
-Environment variables in `.env`:
-- `ADGUARD_HOST`: AdGuard Home server IP
-- `ADGUARD_PORT`: AdGuard Home port (default: 80)
-- `ADGUARD_USE_HTTPS`: Set to 'true' to use HTTPS (default: false)
-- `ADGUARD_USERNAME`: AdGuard Home username
-- `ADGUARD_PASSWORD`: AdGuard Home password
-- `HOSTNAMES`: Comma-separated list of domain names to rewrite
+Alternatively, you can run Docker with environment variables directly:
+
+```bash
+docker run -d \
+  --name adguard-dns-updater \
+  --restart unless-stopped \
+  --network host \
+  --add-host host.docker.internal:host-gateway \
+  -e ADGUARD_HOST=192.168.1.100 \
+  -e ADGUARD_PORT=80 \
+  -e ADGUARD_USE_HTTPS=false \
+  -e ADGUARD_USERNAME=admin \
+  -e ADGUARD_PASSWORD=your_password \
+  -e HOSTNAMES=myhost.local,server.local \
+  adguard-dns-rewrite
+```
+
 
 ## Usage Options
 
@@ -65,6 +75,15 @@ python3 update-adguard-dns.py --dry-run
 # Normal execution
 python3 update-adguard-dns.py
 ```
+## Configuration
+
+Environment variables in `.env`:
+- `ADGUARD_HOST`: AdGuard Home server IP
+- `ADGUARD_PORT`: AdGuard Home port (default: 80)
+- `ADGUARD_USE_HTTPS`: Set to 'true' to use HTTPS (default: false)
+- `ADGUARD_USERNAME`: AdGuard Home username
+- `ADGUARD_PASSWORD`: AdGuard Home password
+- `HOSTNAMES`: Comma-separated list of domain names to rewrite
 
 ## Configuration Examples
 

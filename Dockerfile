@@ -15,7 +15,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application files
 COPY update-adguard-dns.py .
-COPY .env .
 
 # Create cron job to run every 15 minutes
 RUN echo "*/15 * * * * cd /app && python3 update-adguard-dns.py >> /var/log/dns-update.log 2>&1" > /etc/cron.d/dns-update

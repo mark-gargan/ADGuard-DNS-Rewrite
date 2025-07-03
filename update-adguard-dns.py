@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Script to automatically update AdGuard DNS rewrite rule
-Sets HOSTNAME(S) to point to the local ethernet IP
-Supports both single hostname and multiple hostnames (comma-separated)
+Script to automatically update AdGuard DNS rewrite rules
+Sets HOSTNAMES to point to the local ethernet IP
+Supports single hostname or multiple hostnames (comma-separated)
 """
 
 import json
@@ -21,7 +21,7 @@ load_dotenv()
 # Configuration from environment variables
 ADGUARD_HOST = os.getenv("ADGUARD_HOST")
 ADGUARD_PORT = os.getenv("ADGUARD_PORT")
-HOSTNAME = os.getenv("HOSTNAME")
+ADGUARD_USE_HTTPS = os.getenv("ADGUARD_USE_HTTPS", "false").lower() == "true"
 HOSTNAMES = os.getenv("HOSTNAMES")
 
 # AdGuard credentials from environment
@@ -33,34 +33,41 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 def parse_hostnames():
-    """Parse hostnames from environment variables with backward compatibility"""
+    """Parse hostnames from HOSTNAMES environment variable"""
     if HOSTNAMES:
-        # New format: comma-separated list
+        # Parse comma-separated list of hostnames
         hostnames = [hostname.strip() for hostname in HOSTNAMES.split(',') if hostname.strip()]
         logger.info(f"Using HOSTNAMES configuration: {hostnames}")
         return hostnames
-    elif HOSTNAME:
-        # Legacy format: single hostname
-        hostnames = [HOSTNAME.strip()] if HOSTNAME.strip() else []
-        logger.info(f"Using HOSTNAME configuration: {hostnames}")
-        return hostnames
     else:
-        logger.error("No hostnames configured. Please set either HOSTNAME or HOSTNAMES in your .env file.")
+        logger.error("No hostnames configured. Please set HOSTNAMES in your .env file.")
         return []
 
 def validate_hostname(hostname):
-    """Basic hostname validation"""
+    """Enhanced hostname validation with security checks"""
     if not hostname or len(hostname) > 253:
         return False
+    
     # Check for valid characters and structure
     parts = hostname.split('.')
-    if len(parts) < 1:
+    if len(parts) < 2:  # Require at least domain.tld
         return False
+    
+    # Check for suspicious patterns
+    if hostname.startswith('.') or hostname.endswith('.') or '..' in hostname:
+        return False
+    
+    # Validate each part
     for part in parts:
         if not part or len(part) > 63:
             return False
-        if not part.replace('-', '').replace('.', '').isalnum():
+        # Must start and end with alphanumeric
+        if not part[0].isalnum() or not part[-1].isalnum():
             return False
+        # Only allow alphanumeric and hyphens
+        if not all(c.isalnum() or c == '-' for c in part):
+            return False
+    
     return True
 
 def is_running_in_docker():
@@ -180,8 +187,9 @@ def get_ip_macos():
 def get_existing_rewrites():
     """Get existing DNS rewrite rules from AdGuard"""
     try:
-        url = f"http://{ADGUARD_HOST}:{ADGUARD_PORT}/control/rewrite/list"
-        response = requests.get(url, auth=HTTPBasicAuth(ADGUARD_USERNAME, ADGUARD_PASSWORD), timeout=10)
+        protocol = "https" if ADGUARD_USE_HTTPS else "http"
+        url = f"{protocol}://{ADGUARD_HOST}:{ADGUARD_PORT}/control/rewrite/list"
+        response = requests.get(url, auth=HTTPBasicAuth(ADGUARD_USERNAME, ADGUARD_PASSWORD), timeout=10, verify=True)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
@@ -191,9 +199,10 @@ def get_existing_rewrites():
 def delete_existing_rewrite(domain):
     """Delete existing rewrite rule for the domain"""
     try:
-        url = f"http://{ADGUARD_HOST}:{ADGUARD_PORT}/control/rewrite/delete"
+        protocol = "https" if ADGUARD_USE_HTTPS else "http"
+        url = f"{protocol}://{ADGUARD_HOST}:{ADGUARD_PORT}/control/rewrite/delete"
         data = {"domain": domain}
-        response = requests.post(url, json=data, auth=HTTPBasicAuth(ADGUARD_USERNAME, ADGUARD_PASSWORD), timeout=10)
+        response = requests.post(url, json=data, auth=HTTPBasicAuth(ADGUARD_USERNAME, ADGUARD_PASSWORD), timeout=10, verify=True)
         response.raise_for_status()
         logger.info(f"Deleted existing rewrite rule for {domain}")
         return True
@@ -201,16 +210,31 @@ def delete_existing_rewrite(domain):
         logger.error(f"Failed to delete existing rewrite: {e}")
         return False
 
+def validate_ip_address(ip):
+    """Validate IP address format"""
+    try:
+        import ipaddress
+        ipaddress.ip_address(ip)
+        return True
+    except ValueError:
+        return False
+
 def add_dns_rewrite(domain, ip):
     """Add DNS rewrite rule to AdGuard"""
     try:
-        url = f"http://{ADGUARD_HOST}:{ADGUARD_PORT}/control/rewrite/add"
+        # Validate IP address
+        if not validate_ip_address(ip):
+            logger.error(f"Invalid IP address format: {ip}")
+            return False
+        
+        protocol = "https" if ADGUARD_USE_HTTPS else "http"
+        url = f"{protocol}://{ADGUARD_HOST}:{ADGUARD_PORT}/control/rewrite/add"
         data = {
             "domain": domain,
             "answer": ip
         }
         
-        response = requests.post(url, json=data, auth=HTTPBasicAuth(ADGUARD_USERNAME, ADGUARD_PASSWORD), timeout=10)
+        response = requests.post(url, json=data, auth=HTTPBasicAuth(ADGUARD_USERNAME, ADGUARD_PASSWORD), timeout=10, verify=True)
         response.raise_for_status()
         logger.info(f"Successfully added DNS rewrite: {domain} -> {ip}")
         return True
@@ -316,14 +340,17 @@ Updates AdGuard Home DNS rewrite rules to point hostname(s) to local ethernet IP
 
 Configuration (edit .env file to change):
 - AdGuard Host: {ADGUARD_HOST}:{ADGUARD_PORT}
+- HTTPS Mode: {'Enabled' if ADGUARD_USE_HTTPS else 'Disabled'}
 - Hostname(s): {hostname_display}
 - Username: {ADGUARD_USERNAME or '[not configured]'}
 - Password: {'[configured]' if ADGUARD_PASSWORD else '[not configured]'}
 
 Environment Variables:
-- HOSTNAME: Single hostname (legacy format)
-- HOSTNAMES: Comma-separated list of hostnames (new format)
-  Example: HOSTNAMES=myhost.local,server.local,api.local
+- HOSTNAMES: Comma-separated list of hostnames
+  Examples: 
+    Single hostname: HOSTNAMES=myhost.local
+    Multiple hostnames: HOSTNAMES=myhost.local,server.local,api.local
+- ADGUARD_USE_HTTPS: Set to 'true' to use HTTPS (default: false)
 
 Usage: {sys.argv[0]} [options]
 Options:

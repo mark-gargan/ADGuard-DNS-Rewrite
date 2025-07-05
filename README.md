@@ -1,79 +1,68 @@
 # AdGuard DNS Rewrite Updater
 
-Automatically updates AdGuard Home DNS rewrite rules to point hostnames to the local IP address. Supports single or multiple hostnames, cross-platform execution, and Docker containerization with 15-minute scheduling.
+Automatically updates AdGuard Home DNS rewrite rules to point hostnames to the local IP address. Perfect for home servers and self-hosted services that need dynamic IP updates.
 
 ## Features
 
 - **Flexible hostname support**: Configure single hostname or comma-separated list of hostnames
 - **Cross-platform IP detection**: Works on macOS (ifconfig) and Linux (ip command)
-- **Docker support**: Detects container environment and uses Docker host IP
-- **Automatic scheduling**: Runs every 15 minutes in Docker
+- **Automatic scheduling**: Runs every 15 minutes via cron
 - **HTTPS support**: Optional secure communication with AdGuard Home
-- **Configuration via environment variables**: Secure credential management
+- **Virtual environment isolation**: Clean Python dependency management
 - **Enhanced security**: Input validation and secure connections
-- **Logging**: Detailed logs for monitoring and debugging
+- **Comprehensive logging**: Detailed logs for monitoring and debugging
+- **Easy installation**: One-command setup with guided configuration
 
 ## Quick Start
 
-### Direct Execution
+### Automatic Installation (Recommended)
 
-1. Copy `.env.example` to `.env` and configure:
+Run the complete installer:
+```bash
+./install.sh
+```
+
+This will:
+1. Set up Python virtual environment
+2. Install dependencies
+3. Guide you through configuration
+4. Test your setup
+5. Optionally install cron job for automatic updates
+
+### Manual Installation
+
+1. **Setup environment:**
+```bash
+./setup.sh
+```
+
+2. **Configure settings:**
 ```bash
 cp .env.example .env
 # Edit .env with your AdGuard credentials
 ```
 
-2. Install dependencies:
+3. **Test configuration:**
 ```bash
-pip install -r requirements.txt
+./run.sh --dry-run
 ```
 
-3. Run the script:
+4. **Install automatic updates:**
 ```bash
-python3 update-adguard-dns.py
+./install-cron.sh
 ```
-
-### Docker Execution (Recommended)
-
-1. Configure environment variables in `.env`
-2. Build and run with Docker Compose:
-```bash
-docker-compose up -d
-```
-
-The container will automatically run the script every 15 minutes.
-
-#### Docker with Inline Environment Variables
-
-Alternatively, you can run Docker with environment variables directly:
-
-```bash
-docker run -d \
-  --name adguard-dns-updater \
-  --restart unless-stopped \
-  --network host \
-  --add-host host.docker.internal:host-gateway \
-  -e ADGUARD_HOST=192.168.1.100 \
-  -e ADGUARD_PORT=80 \
-  -e ADGUARD_USE_HTTPS=false \
-  -e ADGUARD_USERNAME=admin \
-  -e ADGUARD_PASSWORD=your_password \
-  -e HOSTNAMES=myhost.local,server.local \
-  adguard-dns-rewrite
-```
-
 
 ## Usage Options
 
 ```bash
 # Show help
-python3 update-adguard-dns.py --help
+./run.sh --help
 
 # Dry run (show what would be done)
-python3 update-adguard-dns.py --dry-run
+./run.sh --dry-run
 
-# Normal execution
-python3 update-adguard-dns.py
+# Manual execution
+./run.sh
 ```
 ## Configuration
 
@@ -108,14 +97,22 @@ ADGUARD_USE_HTTPS=true
 ADGUARD_PORT=443
 ```
 
-## Cron Setup (Non-Docker)
+## Management Commands
 
-Add to crontab for 15-minute intervals:
 ```bash
-*/15 * * * * /path/to/update-dns-cron.sh
+# Install cron job
+./install-cron.sh
+
+# Remove cron job
+./uninstall-cron.sh
+
+# View current cron jobs
+crontab -l
+
+# Monitor logs in real-time
+tail -f dns-update.log
 ```
 
 ## Logs
 
-- **Docker**: Logs available via `docker-compose logs -f`
-- **Direct**: Logs to `dns-update.log` in script directory
+All activity is logged to `dns-update.log` in the script directory. Use `tail -f dns-update.log` to monitor real-time updates.
